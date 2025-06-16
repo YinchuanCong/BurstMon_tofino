@@ -1,1 +1,9 @@
-# BurstMon_tofino
+# BurstMon: Microsecond-Level Burst-Aware Traffic Monitoring via Programmable Switches
+
+In modern high-speed networks, bursty traffic variations—sudden surges or drops—often occur at microsecond granularity, impacting congestion control, anomaly detection, and QoS. However, existing monitoring systems operate at millisecond-level resolution and miss fine-grained dynamics. Uploading measurements at microsecond scale is communication-intensive and impractical.
+We propose \textbf{BurstMon}, a microsecond-level burst detection and flow reconstruction system for programmable switch data planes. BurstMon is based on a key observation: most flows are stable, punctuated by short bursts. 
+It detects burst points in traffic streams in real time within the data plane and reports only minimal metadata—flow ID, timestamp, and rate—to the control plane. 
+The control plane reconstructs the full flow rate via linear interpolation, preserving traffic dynamics while minimizing communication overhead.
+To support accurate and efficient in-switch processing, BurstMon introduces three innovations: (1) a lightweight chi-square-based burst detection algorithm with low computational cost; (2) a \textit{time-sketch} structure with 3 sketch rotation scheme to to ensure state isolation and accurate measurement across continuous windows; and (3) a hybrid approximation technique using lookup tables and logarithmic projections to support complex arithmetic in data plane.
+We implement BurstMon on the Intel Tofino switch. Under a 10~$\mu$s measurement window, it achieves over 95\% flow reconstruction accuracy (cosine similarity), incurs around 0.06~Gbps control-plane overhead, and introduces negligible forwarding impact. 
+BurstMon enables practical, scalable microsecond-level traffic streams monitoring—offering new capabilities for real-time visibility and anomaly detection in data center and backbone networks.
