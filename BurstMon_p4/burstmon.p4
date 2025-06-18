@@ -52,42 +52,56 @@ struct metadata_t {
     internal_h internal_hdr;
     approximate_calculation_metadata_t ac_md;
     bit<16> A_W_T;
-    bit<16> A_W;
+    // bit<16> A_W;
     bit<16> time;
-    bit<16> time0;
-    bit<16> time1;
+    // bit<16> time0;
+    // bit<16> time1;
+
+    bit<4> windownum;
+    bit<4> windownum_tmp;
+    bit<2> time_conv;
 
     bit<1> equal_sign;
     bit<1> delta_sign;
 
 
-    bit<16> ret1;
+    bit<16> ret5;
+    bit<16> ret4;
+    bit<16> ret3;
     bit<16> ret2;
-    bit<16> ret;
+    bit<16> ret1;
+    bit<16> ret0;
+    // bit<16> ret;
 
-    bit<16> A_pre1;
-    bit<16> A_pre2;    
-    bit<16> A_pre;    
+    // bit<16> A_pre1;
+    // bit<16> A_pre2;
+    // bit<16> A_pre;    
 
     bit<16> S1;
     bit<16> S2;
     bit<16> S;
 
 
+    bit<16> t5;
+    bit<16> t4;
+    bit<16> t3;
+    bit<16> t2;
     bit<16> t1;
     bit<16> t0;
 
+    bit<16> v_i;
+    bit<16> v_i_1;
 
+    bit<16> len_i;
+    bit<16> len_i_1;
 
     bit<16> delta;
     bit<32> t;
     bit<10> index_0;
     bit<10> index_1;
-    bit<10> index_2;
-    bit<10> index_3;
-
-    bit<16> tmp1;
-    bit<16> tmp2;
+    // bit<10> index_2;
+    // bit<16> tmp1;
+    // bit<16> tmp2;
 
 
     // example_bridge_h example_bridge_hdr;
@@ -99,23 +113,9 @@ struct metadata_t {
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////  sketches ///////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////
+         
 
-
-
-#define A_W_REGISTER_AND_HASH(num,seed) \
-    Register<bit<16>, index_t>(1024) A_W_##num;   \
-    \
-    RegisterAction<bit<16>, index_t, bit<16>> (A_W_##num) A_W_update_##num = { \
-        void apply(inout bit<16> pair, out bit<16> read_pair) { \
-            pair = pair + (bit<16>)(hdr.ipv4.total_len[15:8]); \
-        }\
-    };   \
-    RegisterAction<bit<16>,index_t,bit<16>> (A_W_##num) A_W_clean_##num = {\
-        void apply(inout bit<16> value, out bit<16> read_value) {\
-            value = (bit<16>)(hdr.ipv4.total_len[15:8]);\
-            read_value = value;\
-        }\
-    };\
+#define SET_HASH(num, seed) \
     CRCPolynomial<bit<32>>(seed,                                            \
                            true,                                            \
                            false,                                           \
@@ -123,9 +123,8 @@ struct metadata_t {
                            32w0xFFFFFFFF,                                   \
                            32w0xFFFFFFFF                                    \
                            ) poly##num;                                     \
-    Hash<index_t>(HashAlgorithm_t.CUSTOM, poly##num) hash_##num             
+    Hash<index_t>(HashAlgorithm_t.CUSTOM, poly##num) hash_##num    
 
-// ig_prsr_md.global_tstamp[31:16];
 #define TIMESTAMP_REGISTER(num) \
     Register<bit<16>, index_t>(1024) T_REGISTER_##num;   \
     RegisterAction<bit<16>, index_t, bit<16>> (T_REGISTER_##num) T_update_##num = { \
@@ -147,7 +146,6 @@ struct metadata_t {
         }\
     }
 
-
 #define RET_PKTCOUNT_REGISTER(num) \
     Register<bit<16>, index_t>(1024) RET_PKTCOUNT_##num;   \
     RegisterAction<bit<16>, index_t, bit<16>> (RET_PKTCOUNT_##num)     RET_PKTCOUNT_updateClean_##num = { \
@@ -160,33 +158,18 @@ struct metadata_t {
             \
             read_pair = pair;\
         }\
-    }
-
-#define A_PRE_REGISTER(num) \
-    Register<bit<16>, index_t>(1024) A_PRE_##num;   \
-    RegisterAction<bit<16>, index_t, bit<16>> (A_PRE_##num) A_PRE_updateClean_##num = { \
-        void apply(inout bit<16> pair, out bit<16> read_pair) { \
-            pair = ig_md.delta;\
-            read_pair = pair;\
-        }\
-    };\
-    RegisterAction<bit<16>, index_t, bit<16>> (A_PRE_##num) A_PRE_Query_##num = { \
+    }; \
+    RegisterAction<bit<16>, index_t, bit<16>> (RET_PKTCOUNT_##num)     RET_PKTCOUNT_query_##num = { \
         void apply(inout bit<16> pair, out bit<16> read_pair) { \
             read_pair = pair;\
         }\
-    }
-
+    }  
 
 #define S_REGISTER(num) \
     Register<bit<16>, index_t>(1024) S_##num;   \
     RegisterAction<bit<16>, index_t, bit<16>> (S_##num) S_updateClean_##num = { \
         void apply(inout bit<16> pair, out bit<16> read_pair) { \
-            pair = pair >> 1 + ig_md.delta; \
-            read_pair = pair; \
-        }\
-    }; \
-    RegisterAction<bit<16>, index_t, bit<16>> (S_##num) S_Query_##num = { \
-        void apply(inout bit<16> pair, out bit<16> read_pair) { \
+            pair = pair + ig_md.delta; \
             read_pair = pair; \
         }\
     }
@@ -228,7 +211,7 @@ parser SwitchIngressParser(
 
     state parse_ethernet {
         pkt.extract(hdr.ethernet);
-         transition select(hdr.ethernet.ether_type) {
+        transition select(hdr.ethernet.ether_type) {
             ETHERTYPE_IPV4 : parse_ipv4;
             default : accept;
         }
@@ -298,45 +281,35 @@ control SwitchIngress(
         in ingress_intrinsic_metadata_from_parser_t ig_prsr_md,
         inout ingress_intrinsic_metadata_for_deparser_t ig_dprsr_md,
         inout ingress_intrinsic_metadata_for_tm_t ig_tm_md) {
-
     
-
-    A_W_REGISTER_AND_HASH(0,32w0x04C11DB7);
-    A_W_REGISTER_AND_HASH(1,32w0x34FD110C);
-    // A_W_REGISTER_AND_HASH(2,32w0x203AD4E3);
-    // A_W_REGISTER_AND_HASH(3,32w0x123ADB43);
+    SET_HASH(0, 32w0x04C11DB7);
+    SET_HASH(1, 32w0x34FD110C);
 
     TIMESTAMP_REGISTER(0);
     TIMESTAMP_REGISTER(1);
-    // TIMESTAMP_REGISTER(2);
-    // TIMESTAMP_REGISTER(3);
 
+    TIMESTAMP_REGISTER(2);
+    TIMESTAMP_REGISTER(3);
 
-
-
-    
-
+    TIMESTAMP_REGISTER(4);
+    TIMESTAMP_REGISTER(5);
 
     RET_PKTCOUNT_REGISTER(0);
     RET_PKTCOUNT_REGISTER(1);
-    // RET_PKTCOUNT_REGISTER(2);
-    // RET_PKTCOUNT_REGISTER(3);
-    
-    A_PRE_REGISTER(0);
-    A_PRE_REGISTER(1);
-    // A_PRE_REGISTER(2);
-    // A_PRE_REGISTER(3);
 
+    RET_PKTCOUNT_REGISTER(2);
+    RET_PKTCOUNT_REGISTER(3);
+
+    RET_PKTCOUNT_REGISTER(4);
+    RET_PKTCOUNT_REGISTER(5);
 
     S_REGISTER(0);
     S_REGISTER(1);
-    // S_REGISTER(2);
-    // S_REGISTER(3);
 
     action set_equal_sign(bit<1> sign) {
         ig_md.equal_sign = sign;
     }
-    table time_euqal_table {
+    table time_equal_table {
         key = {
             ig_md.A_W_T[7:0] : exact;
             ig_md.time[7:0]:exact;
@@ -346,11 +319,10 @@ control SwitchIngress(
         }
         size = 65536;
     }
-
+    
     action set_abs_delta(bit<16> abs_delta){
         ig_md.delta = abs_delta; 
     }
-
     table delta_abs_table {
         key = {
             ig_md.delta: exact;
@@ -360,7 +332,6 @@ control SwitchIngress(
         }
         size = 65535;
     }
-
 
 
     action get_log_int_m1_action(int<16> log_int) {
@@ -433,7 +404,7 @@ control SwitchIngress(
     }
 
      @force_immediate(1)
-    table get_abs_z_table2 { 
+    table get_abs_z_table2 {
         key = {
            ig_md.ac_md.n : exact;
         }
@@ -443,7 +414,6 @@ control SwitchIngress(
 
         size = 65536; 
     } 
-    ////////////
 
     table get_log_int_m1_table3 {
         key = {
@@ -468,7 +438,7 @@ control SwitchIngress(
     }
 
     @force_immediate(1)
-    table get_abs_z_table3 { 
+    table get_abs_z_table3 {
         key = {
            ig_md.ac_md.n : exact;
         }
@@ -477,69 +447,90 @@ control SwitchIngress(
         }
 
         size = 65536; 
-    } 
+    }
 
 
     apply{
-    
     ig_md.time = ig_prsr_md.global_tstamp[31:16];
+    ig_md.windownum = (bit<4>)(ig_md.time >> 12);
+
+    ig_md.time_conv = (bit<2>)(ig_md.windownum_tmp & 0b11);
+    if(ig_md.windownum_tmp == 3){
+        ig_md.windownum = 0;
+    }
+    else{
+        ig_md.windownum = ig_md.windownum_tmp;
+    }
     APPLY_HASH(0);
     APPLY_HASH(1);
     // APPLY_HASH(2);
     // APPLY_HASH(3);
-
     ig_md.t0 = T_Query_0.execute(ig_md.index_0);
     ig_md.t1 = T_Query_1.execute(ig_md.index_1);
-    ig_md.A_W_T = min(ig_md.t0,ig_md.t1);
 
+    ig_md.t2 = T_Query_2.execute(ig_md.index_0);
+    ig_md.t3 = T_Query_3.execute(ig_md.index_1);
+
+    ig_md.t4 = T_Query_4.execute(ig_md.index_0);
+    ig_md.t5 = T_Query_5.execute(ig_md.index_1);
+    if(ig_md.time_conv == 0){
+        ig_md.A_W_T = min(ig_md.t0, ig_md.t1);
+    }
+    if(ig_md.time_conv == 1){
+        ig_md.A_W_T = min(ig_md.t2, ig_md.t3);
+    }
+    if(ig_md.time_conv == 2){
+        ig_md.A_W_T = min(ig_md.t4, ig_md.t5);
+    }
     
-
+    time_equal_table.apply();
     
-    time_euqal_table.apply();
+    ig_md.ret0 = RET_PKTCOUNT_updateClean_0.execute(ig_md.index_0);
+    ig_md.ret1 = RET_PKTCOUNT_updateClean_1.execute(ig_md.index_1);
+    ig_md.ret2 = RET_PKTCOUNT_updateClean_2.execute(ig_md.index_0);
+    ig_md.ret3 = RET_PKTCOUNT_updateClean_3.execute(ig_md.index_1);
+    ig_md.ret4 = RET_PKTCOUNT_updateClean_4.execute(ig_md.index_0);
+    ig_md.ret5 = RET_PKTCOUNT_updateClean_5.execute(ig_md.index_1);
 
-    ig_md.tmp1 = A_W_update_0.execute(ig_md.index_0);
-    ig_md.tmp2 = A_W_update_1.execute(ig_md.index_1);
+    if(ig_md.equal_sign == 0){
+        if(ig_md.time_conv == 0){
+            ig_md.v_i_1 = min(ig_md.t2, ig_md.t3);
+            ig_md.len_i_1 = min(ig_md.ret2, ig_md.ret3);
 
-    ig_md.ret1= RET_PKTCOUNT_updateClean_0.execute(ig_md.index_0);
-    ig_md.ret2= RET_PKTCOUNT_updateClean_1.execute(ig_md.index_1);
+            ig_md.v_i = min(ig_md.t4, ig_md.t5);
+            ig_md.len_i = min(ig_md.ret4, ig_md.ret5);
+        }
+        if(ig_md.time_conv == 1){
+            ig_md.v_i_1 = min(ig_md.t4, ig_md.t5);
+            ig_md.len_i_1 = min(ig_md.ret2, ig_md.ret3);
 
-    if(ig_md.equal_sign == 0) {
-        
+            ig_md.v_i = min(ig_md.t0, ig_md.t1);
+            ig_md.len_i = min(ig_md.ret4, ig_md.ret5);
+        }
+        if(ig_md.time_conv == 2){
+            
+            ig_md.v_i_1 = min(ig_md.t2, ig_md.t3);
+            ig_md.len_i_1 = min(ig_md.ret2, ig_md.ret3);
 
-        ig_md.A_pre1 =  A_PRE_Query_0.execute(ig_md.index_0);
-        ig_md.A_pre2 =  A_PRE_Query_1.execute(ig_md.index_1);
-
-        ig_md.A_W = min(ig_md.tmp2,ig_md.tmp1);
-        ig_md.ret = min(ig_md.ret1,ig_md.ret2);  
-        ig_md.A_pre = min(ig_md.A_pre1,ig_md.A_pre2);
-
-
-        ig_md.delta = ig_md.A_W - ig_md.A_pre ;
-
-        delta_abs_table.apply();
-        // if (ig_md.delta[15:15]== 1w0) {
-        // ig_md.delta =  ig_md.A_pre - ig_md.A_W ;
-        // } else {
-        //     ig_md.delta =   ig_md.A_W - ig_md.A_pre ;
-        // }
-
-        ig_md.S1 =  S_Query_0.execute(ig_md.index_0);
-        ig_md.S2 =  S_Query_1.execute(ig_md.index_1);
-        ig_md.S = min(ig_md.S1,ig_md.S2);
-
+            ig_md.v_i = min(ig_md.t2, ig_md.t3);
+            ig_md.len_i = min(ig_md.ret4, ig_md.ret5);
+        }
     }
 
+    
+    ig_md.delta = ig_md.len_i - ig_md.len_i_1;
+    delta_abs_table.apply();
+
+    ig_md.S1 = S_updateClean_0.execute(ig_md.index_0);
+    ig_md.S2 = S_updateClean_1.execute(ig_md.index_1);
+    ig_md.S = min(ig_md.S1, ig_md.S2);
 
 
-
-    ///////////////////////////////////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////
 
     ig_md.ac_md.a_avg = ig_md.delta;
-    ig_md.ac_md.s_avg = ig_md.s;
-    ig_md.ac_md.t = hdr.calc.t;
+    ig_md.ac_md.s_avg = ig_md.S;
+    ig_md.ac_md.t = ig_md.time;
     
-    // a * t  , both are int and above 0
     ig_md.ac_md.int_m1 = ig_md.ac_md.a_avg;
     get_log_int_m1_table.apply();
 
@@ -548,7 +539,7 @@ control SwitchIngress(
 
     ig_md.ac_md.sign_z = 0x0000;
     ig_md.ac_md.n = ig_md.ac_md.log_int_m1 + ig_md.ac_md.log_int_m2;
-    get_abs_z_table.apply();  // 
+    get_abs_z_table.apply();
     ig_md.ac_md.z = ig_md.ac_md.z | ig_md.ac_md.sign_z;
     ig_md.ac_md.at = ig_md.ac_md.z;  // a*t  is INT16
     // checked
@@ -562,67 +553,52 @@ control SwitchIngress(
     if (ig_md.ac_md.z[15:15]==0) {
         ig_md.ac_md.at_s = ig_md.ac_md.s_avg - ig_md.ac_md.at;
     } else {
-        ig_md.ac_md.at_s =  ig_md.ac_md.at - ig_md.ac_md.s_avg ; // |at-s|
+        // ig_md.ac_md.s0 = 0xFFFF^ig_md.ac_md.z;
+        ig_md.ac_md.at_s =  ig_md.ac_md.at - ig_md.ac_md.s_avg ;
     }
     // checked
 
     
    
 
-    // s*(t-1),and  sqrt(s*(t-1))
     ig_md.ac_md.int_m1 = ig_md.ac_md.s_avg;
-    get_log_int_m1_table2.apply(); 
+    get_log_int_m1_table2.apply();
     ig_md.ac_md.int_m2 = ig_md.ac_md.t - 1;
-    get_log_int_m2_table2.apply(); 
+    get_log_int_m2_table2.apply();
     ig_md.ac_md.sign_z = 0x0000;
     ig_md.ac_md.n = ig_md.ac_md.log_int_m1 + ig_md.ac_md.log_int_m2; // checked
     // ig_md.ac_md.n = hdr.calc.a; // for debug 4449-> 56792?
-    get_abs_z_table2.apply();  
+    get_abs_z_table2.apply();
     ig_md.ac_md.f_sqrt_s_t_1 = ig_md.ac_md.z ; // 1/sqrt(s*(t-1))  float16
     //
 
 
+    // for debug
     
     
 
     ig_md.ac_md.int_m1 = ig_md.ac_md.at_s;
-    get_log_int_m1_table3.apply(); 
+    get_log_int_m1_table3.apply();
     ig_md.ac_md.log_int_m2 = ig_md.ac_md.f_sqrt_s_t_1; // is a bit16 float >1
-    get_log_int_m2_table3.apply(); 
+    get_log_int_m2_table3.apply();
+    // ig_md.ac_md.sign_z = 0x0000;
 
     ig_md.ac_md.n = ig_md.ac_md.log_int_m1 + ig_md.ac_md.log_int_m2;
-    get_abs_z_table3.apply();  
+    get_abs_z_table3.apply();
     ig_md.ac_md.score = ig_md.ac_md.z ;
 
 
-    hdr.calc.a = ig_md.ac_md.log_int_m1;
-    hdr.calc.s = ig_md.ac_md.log_int_m2;
-    hdr.calc.t = ig_md.ac_md.n;
-    hdr.calc.score = ig_md.ac_md.score;
-    ///////////////////////////////////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////////
-
-    
-    ig_md.ac_md.n = ig_md.ac_md.log_int_m1 + ig_md.ac_md.log_int_m2;
-    get_abs_z_table3.apply();  
-    ig_md.ac_md.score = ig_md.ac_md.z ;//  |at -s | * 1\sqrt(s*(t-1))  is INT16
-    // 
-
-
-
+    // hdr.calc.a = ig_md.ac_md.log_int_m1;
+    // hdr.calc.s = ig_md.ac_md.log_int_m2;
+    // hdr.calc.t = ig_md.ac_md.n;
     hdr.calc.score = ig_md.ac_md.score;
 
-
-
-
-
-    
     if(ig_intr_md.ingress_port==128) {
         ig_tm_md.ucast_egress_port = 136;
     } else {
         ig_tm_md.ucast_egress_port =128;
     }
-    ig_tm_md.bypass_egress = 1w1;
+        ig_tm_md.bypass_egress = 1w1;
     }
 
 }

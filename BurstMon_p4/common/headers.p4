@@ -109,7 +109,7 @@ struct header_t {
     ipv4_h ipv4;
     // ipv6_h ipv6;
 
-    // tcp_h tcp;
+    //tcp_h tcp;
     udp_h udp;
     calc_h calc;
 
@@ -121,7 +121,22 @@ struct empty_header_t {}
 
 struct empty_metadata_t {}
 
-// --------------------------------------------------------------
+// ---------------------------------------------------------------------------
+//                             Approximate Calculation
+// z=x+y 
+// frac_z=z, frac_x=|x|, frac_y=|y|
+// log_i=log(frac_x), log_j=log(frac_y)
+// log_k=log_j-log_i
+// log_m=log(±1±2^(j-i))
+// n=i+log(±1±2^(j-i))
+// sign_z=0x0 if z>0 else sign_z=0x8000  
+// info: ___________________________ ______ _____ _________  
+//      |  five bits reserved       |  x>0 | y>0 | |x|>|y| |      let 0 be ture, and 1 be false 
+//      |___________________________|______|_____|_________|
+// flag:
+//      x+y= ±2^(i+log(±1±2^(j-i)))
+//      the first two bits of flag correspond to the last two ±, and the others are reserved. 
+// ---------------------------------------------------------------------------
 struct approximate_calculation_metadata_t {
     int<16> frac_x;
     int<16> frac_y;
