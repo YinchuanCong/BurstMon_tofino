@@ -6,5 +6,5 @@ We present **{BurstMon}**, a microsecond-resolution telemetry system that perfor
 
 To support efficient in-switch execution, BurstMon introduces: (1) a ** time-sketch ** structure with a three-rotation scheme for continuous rate tracking; (2) a hybrid arithmetic approximation method combining lookup tables and logarithmic projection; and (3) a minimal reporting interface for scalable control-plane integration. These techniques effectively address data-plane resource constraints by minimizing per-packet processing overhead and memory usage.
 
-We implement BurstMon on an Intel Tofino switch and evaluate it using production-inspired workloads. At 10~$\mu$s resolution, it achieves over 95\% per-flow traffic reconstruction accuracy while maintaining control-plane bandwidth under 0.07~Gbps 
+We implement BurstMon on an Intel Tofino switch and evaluate it using production-inspired workloads. At 10 $\mu$s resolution, it achieves over 95\% per-flow traffic reconstruction accuracy while maintaining control-plane bandwidth under 0.07 Gbps 
 with negligible impact on the switch's forwarding throughput.
