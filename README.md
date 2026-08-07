@@ -49,8 +49,6 @@ steering, and proactive congestion signaling.
 ```text
 .
 ├── README.md                              Reproduction entry point
-├── paper/
-│   └── nsdi_v3_marked.pdf                 Reference paper
 ├── datasets/
 │   ├── hadoop15.csv                       Hadoop trace
 │   └── websearch25.csv                    Web-search trace
