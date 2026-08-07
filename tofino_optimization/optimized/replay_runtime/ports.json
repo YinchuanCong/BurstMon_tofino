@@ -1,0 +1,8 @@
+{
+  "PortToIf": [
+    {
+      "device_port": 64,
+      "if": "enp7s0"
+    }
+  ]
+}

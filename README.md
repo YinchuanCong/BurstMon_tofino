@@ -1,10 +1,148 @@
-# Programmable Switch Telemetry at Microsecond Granularity: BurstMon in Action
+# BurstMon Reproduction
 
-Modern high-speed networks exhibit highly dynamic traffic behaviors, where microsecond-scale bursts and rate shifts can significantly impact congestion control, scheduling, and anomaly response. However, most existing telemetry systems operate at millisecond granularity and rely on periodic sampling or sketch-based aggregation, which miss critical fine-grained events. Achieving microsecond-level visibility at scale remains challenging due to limited compute, memory, and bandwidth in network devices.
+## Original paper
 
-We present **{BurstMon}**, a microsecond-resolution telemetry system that performs real-time burst detection in the data plane and reconstructs per-flow traffic curves in the control plane via sparse event reporting. BurstMon is based on the key observation that most traffic is stable, punctuated by short-lived bursts. It identifies statistically significant rate deviations using a lightweight chi-square test and reports only high-signal change points. The control plane interpolates between these sparse points to reconstruct accurate flow trajectories.
+The reference paper is available at
+[`paper/nsdi_v3_marked.pdf`](paper/nsdi_v3_marked.pdf).
 
-To support efficient in-switch execution, BurstMon introduces: (1) a ** time-sketch ** structure with a three-rotation scheme for continuous rate tracking; (2) a hybrid arithmetic approximation method combining lookup tables and logarithmic projection; and (3) a minimal reporting interface for scalable control-plane integration. These techniques effectively address data-plane resource constraints by minimizing per-packet processing overhead and memory usage.
+### Title
 
-We implement BurstMon on an Intel Tofino switch and evaluate it using production-inspired workloads. At 10 $\mu$s resolution, it achieves over 95\% per-flow traffic reconstruction accuracy while maintaining control-plane bandwidth under 0.07 Gbps 
-with negligible impact on the switch's forwarding throughput.
+> Programmable Switch Telemetry at Microsecond Granularity: BurstMon in Action
+
+### Abstract
+
+Modern high-speed networks exhibit highly dynamic traffic behaviors, where
+microsecond-scale bursts and rate shifts can significantly impact congestion
+control, scheduling, and anomaly response. Most existing telemetry systems
+operate at millisecond granularity, missing critical fine-grained events.
+Recent work such as µMon pushes monitoring resolution toward microseconds by
+compressing rate traces with wavelet transforms, but its multi-timeslot
+buffering introduces milliseconds of latency that fundamentally limits
+responsiveness.
+
+We make a complementary observation about the structure of microsecond-scale
+flow signals: they are sparse in the event domain—most flows exhibit long
+stable periods punctuated by a small number of sharp transitions (i.e., rising
+and falling edges). This insight motivates BurstMon, a microsecond-resolution
+telemetry system that detects change points directly in the data plane and
+reconstructs per-flow rate curves via sparse event reporting and control-plane
+interpolation.
+
+BurstMon introduces two key advances over prior rotating-sketch systems: (1) a
+time-sketch with dual-purpose per-cell timestamps that unify logical lazy
+clearing and transition-driven chi-square triggering, eliminating dedicated
+cleaning sketches; and (2) a complete event-domain telemetry pipeline—from
+in-switch change-point detection via logarithmic-projection-based chi-square
+testing, through minimal digest reporting, to control-plane curve
+reconstruction. We provide formal guarantees on false-positive rate and
+stable-period reconstruction error.
+
+Implemented on an Intel Tofino switch and evaluated on four
+production-inspired workloads, BurstMon achieves over 95% cosine similarity at
+10–80µs resolution, maintains control-plane bandwidth below 0.07Gbps, and
+delivers response latency of ∼410µs—much faster than µMon. We demonstrate its
+value through congestion attribution, pulse-wave DDoS detection, elephant flow
+steering, and proactive congestion signaling.
+
+## Repository structure
+
+```text
+.
+├── README.md                              Reproduction entry point
+├── paper/
+│   └── nsdi_v3_marked.pdf                 Reference paper
+├── datasets/
+│   ├── hadoop15.csv                       Hadoop trace
+│   └── websearch25.csv                    Web-search trace
+├── burstmon_simulation/
+│   ├── __main__.py                        Python module entry point
+│   ├── cli.py                             CLI configuration
+│   └── simulator.py                       Simulation and reconstruction
+├── tofino_optimization/
+│   └── optimized/
+│       ├── burstmon_optimized.p4           Shared P4 pipeline
+│       ├── burstmon_dataset_replay_10us_32bit.p4
+│       ├── common/                         Shared P4 headers
+│       ├── runtime/                        LUT loader and tests
+│       ├── replay_runtime/                 Replay and reconstruction
+│       └── replay_runtime_10us_32bit/      Specialized replay runtime
+├── tofino_score_accuracy/
+│   ├── burstmon_score_eval.p4             Score-evaluation P4 program
+│   └── runtime/                            Accuracy runtime and tests
+├── run_python_simulation.sh              Python reproduction wrapper
+├── run_tofino_10us_32bit.sh              Tofino replay wrapper
+└── run_tofino_score_accuracy.sh           Score-accuracy wrapper
+```
+
+Run all commands from the repository root.
+
+## Local Python simulation
+
+Install the Python dependency and reproduce both included datasets:
+
+```bash
+python3 -m pip install numpy
+./run_python_simulation.sh
+```
+
+Run a shorter smoke reproduction:
+
+```bash
+MAX_PACKETS=100000 ./run_python_simulation.sh
+```
+
+Override simulation parameters when needed:
+
+```bash
+TIMESTEP=10000 \
+DEPTH=12 \
+WIDTH=6451 \
+HADOOP_THRESHOLD=200 \
+WEBSEARCH_THRESHOLD=256 \
+OUTPUT_DIR="$PWD/simulation_results/custom_run" \
+./run_python_simulation.sh
+```
+
+## Tofino dataset replay
+
+This command requires an authorized Tofino1 switch with SDE 9.7.0. It changes
+the active switch program during the run and restores the configured program
+on exit.
+
+```bash
+./run_tofino_10us_32bit.sh --help
+./run_tofino_10us_32bit.sh
+```
+
+Reproduce Hadoop15 with explicit connection and output settings:
+
+```bash
+TOFINO_HOST=192.168.30.252 \
+TOFINO_PORT=22 \
+TOFINO_USER=root \
+REMOTE_SDE=/root/bf-sde-9.7.0 \
+REMOTE_CODE=/root/bf-sde-9.7.0/CYC_P4/BurstMon_final \
+DATASETS=hadoop15.csv \
+THRESHOLD=32 \
+OUTPUT_DIR="$PWD/tofino_optimization/results/hadoop15_reproduction" \
+./run_tofino_10us_32bit.sh
+```
+
+Use an SSH key or enter the password interactively. No password is stored by
+the script.
+
+## Tofino score-accuracy reproduction
+
+```bash
+./run_tofino_score_accuracy.sh --help
+./run_tofino_score_accuracy.sh
+```
+
+Override the sample count, seed, or output directory:
+
+```bash
+SAMPLE_COUNT=2048 \
+SEED=20260806 \
+OUTPUT_DIR="$PWD/tofino_score_accuracy/results/custom_run" \
+./run_tofino_score_accuracy.sh
+```

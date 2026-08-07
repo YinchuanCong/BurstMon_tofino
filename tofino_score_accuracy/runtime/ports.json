@@ -1,0 +1,8 @@
+{
+  "PortToIf": [
+    {
+      "device_port": 0,
+      "if": "lo"
+    }
+  ]
+}
