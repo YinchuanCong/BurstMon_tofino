@@ -77,7 +77,7 @@ The repository has two distinct execution environments:
 |------|-------|
 | OS | Linux (any modern distribution) |
 | Python | 3.11.5 (3.9+ expected to work) |
-| Dependency | numpy 1.24.3 (pinned in `requirements.txt`) |
+| Dependency | numpy 1.24.3  |
 | Inputs | Static CSV datasets bundled in `datasets/` |
 
 
