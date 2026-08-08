@@ -1,13 +1,4 @@
-# BurstMon Reproduction
-
-## Original paper
-
-The reference paper is available at
-[`paper/nsdi_v3_marked.pdf`](paper/nsdi_v3_marked.pdf).
-
-### Title
-
-> Programmable Switch Telemetry at Microsecond Granularity: BurstMon in Action
+# Programmable Switch Telemetry at Microsecond Granularity: BurstMon in Action
 
 ### Abstract
 
@@ -49,6 +40,8 @@ steering, and proactive congestion signaling.
 ```text
 .
 ├── README.md                              Reproduction entry point
+├── paper/
+│   └── nsdi_v3_marked.pdf                 Reference paper
 ├── datasets/
 │   ├── hadoop15.csv                       Hadoop trace
 │   └── websearch25.csv                    Web-search trace
@@ -74,12 +67,40 @@ steering, and proactive congestion signaling.
 
 Run all commands from the repository root.
 
+## Runtime environment
+
+The repository has two distinct execution environments:
+
+### Local Python simulation (no hardware required)
+
+| Item | Value |
+|------|-------|
+| OS | Linux (any modern distribution) |
+| Python | 3.11.5 (3.9+ expected to work) |
+| Dependency | numpy 1.24.3 (pinned in `requirements.txt`) |
+| Inputs | Static CSV datasets bundled in `datasets/` |
+
+
+### Tofino1 hardware runs (replay and score accuracy)
+
+| Item | Value |
+|------|-------|
+| Switch | Intel Tofino1 (tested on `192.168.30.252`) |
+| SDE | 9.7.0 (`/root/bf-sde-9.7.0`) |
+| Remote Python | SDE 9.7.0 bundles Python 3.5; replay runtime is standard-library only |
+| Access | SSH root (key or interactive password; never stored) |
+| Driver swap | `bf_kdrv` (normal) <-> `bf_kpkt` (replay), restored on every exit |
+
+
+Both `.sh` wrappers run a fixed 7-step workflow (connect -> upload -> compile ->
+switch program -> program LUTs -> replay/evaluate -> collect results -> restore).
+
 ## Local Python simulation
 
 Install the Python dependency and reproduce both included datasets:
 
 ```bash
-python3 -m pip install numpy
+python3 -m pip install -r requirements.txt
 ./run_python_simulation.sh
 ```
 
